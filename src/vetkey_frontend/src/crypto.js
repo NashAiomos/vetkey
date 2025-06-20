@@ -1,80 +1,278 @@
 // 使用 Web Crypto API 实现更安全的加密
 
-// 从 vetKey 派生 AES 密钥
-export async function deriveAESKey(vetKey) {
-  const keyBytes = vetKey.signatureBytes();
-  
-  // 使用前 32 字节作为 AES-256 密钥材料
-  const keyMaterial = keyBytes.slice(0, 32);
-  
-  // 导入密钥材料
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw',
-    keyMaterial,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt', 'decrypt']
-  );
-  
-  return cryptoKey;
+import {
+  TransportSecretKey,
+  DerivedPublicKey,
+  EncryptedVetKey,
+  VetKey,
+  IbeCiphertext,
+  IbeIdentity,
+  IbeSeed,
+} from "@dfinity/vetkeys";
+
+/**
+ * VetKeys IBE 加密模块 - 提供安全的身份基加密功能
+ * 
+ * 安全特性：
+ * 1. 使用 IBE (Identity-Based Encryption) 进行端到端加密
+ * 2. 自动处理密钥派生和验证
+ * 3. 提供完整性验证
+ * 4. 支持安全的密钥存储和管理
+ */
+
+// 密钥缓存 - 用于优化性能，避免重复解密
+const keyCache = new Map();
+
+// 域分离器 - 必须与后端保持一致
+const BACKEND_DOMAIN_SEPARATOR = "zCloak-KYC-vetkey-app-zzx777593gcaatys7824k77g9ryxv78td5g6sh";
+
+/**
+ * 生成传输密钥
+ * 传输密钥每次都重新生成，用于安全传输 VetKey
+ */
+export function generateTransportKey() {
+  return TransportSecretKey.random();
 }
 
-// 加密数据
-export async function encryptDataSecure(data, vetKey) {
-  const aesKey = await deriveAESKey(vetKey);
+/**
+ * 清除 VetKey 缓存（用于登出或安全清理）
+ */
+export function clearVetKeyCache() {
+  keyCache.clear();
+}
+
+/**
+ * 获取派生的 VetKey
+ * @param {string} userId - 用户标识符
+ * @param {Uint8Array} encryptedVetKeyBytes - 从后端获取的加密 VetKey
+ * @param {Uint8Array} publicKeyBytes - 公钥字节
+ * @param {TransportSecretKey} transportSecretKey - 传输密钥（与获取encryptedVetKeyBytes时使用的相同）
+ * @returns {VetKey} 解密并验证的 VetKey
+ */
+export function getVetKey(userId, encryptedVetKeyBytes, publicKeyBytes, transportSecretKey) {
+  // 检查缓存
+  const cacheKey = `${userId}-${btoa(String.fromCharCode(...encryptedVetKeyBytes.slice(0, 8)))}`;
+  if (keyCache.has(cacheKey)) {
+    return keyCache.get(cacheKey);
+  }
   
-  // 生成随机 IV (初始化向量)
+  try {
+    // 反序列化公钥和加密的VetKey
+    const publicKey = DerivedPublicKey.deserialize(publicKeyBytes);
+    const encryptedVetKey = new EncryptedVetKey(encryptedVetKeyBytes);
+    
+    // 使用与后端加密时一致的纯用户ID作为身份
+    const userIdBytes = new TextEncoder().encode(userId);
+    
+    // 直接使用已知正确的身份格式进行解密
+    const vetKey = encryptedVetKey.decryptAndVerify(
+      transportSecretKey,
+      publicKey,
+      userIdBytes
+    );
+    
+    // 缓存解密的密钥（限制缓存大小）
+    if (keyCache.size > 100) {
+      const firstKey = keyCache.keys().next().value;
+      keyCache.delete(firstKey);
+    }
+    keyCache.set(cacheKey, vetKey);
+    
+    return vetKey;
+    
+  } catch (error) {
+    console.error('VetKey 解密失败:', error.message);
+    // 抛出更具体的错误信息
+    throw new Error(`VetKey 验证失败: ${error.message}. 请确保用户ID正确.`);
+  }
+}
+
+/**
+ * 使用 IBE 加密数据
+ * @param {Uint8Array} data - 要加密的数据
+ * @param {string} userId - 接收者的用户ID
+ * @param {DerivedPublicKey} publicKey - 派生公钥
+ * @returns {Promise<Uint8Array>} 加密后的数据
+ */
+export async function encryptWithIBE(data, userId, publicKey) {
+  try {
+    // 使用纯用户 ID 作为身份（与后端 VetKey 生成时的 input 参数一致）
+    const userIdBytes = new TextEncoder().encode(userId);
+    
+    // 创建 IBE 身份
+    const identity = IbeIdentity.fromBytes(userIdBytes);
+    
+    // 生成随机种子
+    const seed = IbeSeed.random();
+    
+    // 执行 IBE 加密
+    const ciphertext = IbeCiphertext.encrypt(
+      publicKey,
+      identity,
+      data,
+      seed
+    );
+    
+    // 序列化密文
+    const serialized = ciphertext.serialize();
+    
+    // 添加版本和元数据头部（便于未来升级）
+    const VERSION = 1;
+    const header = new Uint8Array([VERSION]);
+    const result = new Uint8Array(header.length + serialized.length);
+    result.set(header, 0);
+    result.set(serialized, header.length);
+    
+    return result;
+  } catch (error) {
+    console.error('IBE 加密失败:', error);
+    throw new Error(`IBE 加密失败: ${error.message}`);
+  }
+}
+
+/**
+ * 使用 IBE 解密数据
+ * @param {Uint8Array} encryptedData - 加密的数据
+ * @param {VetKey} vetKey - 用于解密的 VetKey
+ * @returns {Promise<Uint8Array>} 解密后的数据
+ */
+export async function decryptWithIBE(encryptedData, vetKey) {
+  try {
+    // 检查版本
+    if (encryptedData[0] !== 1) {
+      throw new Error('不支持的加密版本');
+    }
+    
+    // 提取实际的密文（跳过版本字节）
+    const ciphertextBytes = encryptedData.slice(1);
+    
+    // 反序列化密文
+    const ciphertext = IbeCiphertext.deserialize(ciphertextBytes);
+    
+    // 执行 IBE 解密
+    const decrypted = ciphertext.decrypt(vetKey);
+    
+    return new Uint8Array(decrypted);
+  } catch (error) {
+    console.error('IBE 解密失败:', error);
+    throw new Error(`解密失败: ${error.message}`);
+  }
+}
+
+/**
+ * 为大文件提供混合加密方案
+ * 使用 IBE 加密对称密钥，然后用对称密钥加密实际数据
+ */
+export async function encryptLargeData(data, userId, publicKey) {
+  // 生成随机对称密钥
+  const symmetricKey = crypto.getRandomValues(new Uint8Array(32));
+  
+  // 使用 IBE 加密对称密钥
+  const encryptedKey = await encryptWithIBE(symmetricKey, userId, publicKey);
+  
+  // 使用对称密钥加密数据
   const iv = crypto.getRandomValues(new Uint8Array(12));
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    symmetricKey,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt']
+  );
   
-  // 使用 AES-GCM 加密
   const encryptedData = await crypto.subtle.encrypt(
-    {
-      name: 'AES-GCM',
-      iv: iv
-    },
-    aesKey,
+    { name: 'AES-GCM', iv },
+    cryptoKey,
     data
   );
   
-  // 将 IV 和加密数据合并（IV 在前，加密数据在后）
-  const result = new Uint8Array(iv.length + encryptedData.byteLength);
-  result.set(iv, 0);
-  result.set(new Uint8Array(encryptedData), iv.length);
+  // 组合结果：[加密密钥长度(2字节)] + [加密密钥] + [IV] + [加密数据]
+  const keyLengthBytes = new Uint8Array(2);
+  new DataView(keyLengthBytes.buffer).setUint16(0, encryptedKey.length, false);
+  
+  const result = new Uint8Array(
+    2 + encryptedKey.length + iv.length + encryptedData.byteLength
+  );
+  
+  let offset = 0;
+  result.set(keyLengthBytes, offset);
+  offset += 2;
+  result.set(encryptedKey, offset);
+  offset += encryptedKey.length;
+  result.set(iv, offset);
+  offset += iv.length;
+  result.set(new Uint8Array(encryptedData), offset);
+  
+  // 安全清除对称密钥
+  crypto.getRandomValues(symmetricKey);
   
   return result;
 }
 
-// 解密数据
-export async function decryptDataSecure(encryptedData, vetKey) {
-  const aesKey = await deriveAESKey(vetKey);
+/**
+ * 解密大文件
+ */
+export async function decryptLargeData(encryptedData, vetKey) {
+  // 读取加密密钥长度
+  const keyLength = new DataView(encryptedData.buffer, 0, 2).getUint16(0, false);
   
-  // 提取 IV（前 12 字节）
-  const iv = encryptedData.slice(0, 12);
+  let offset = 2;
+  // 提取加密的对称密钥
+  const encryptedKey = encryptedData.slice(offset, offset + keyLength);
+  offset += keyLength;
   
-  // 提取实际的加密数据
-  const ciphertext = encryptedData.slice(12);
+  // 提取 IV
+  const iv = encryptedData.slice(offset, offset + 12);
+  offset += 12;
   
-  // 使用 AES-GCM 解密
+  // 提取加密数据
+  const ciphertext = encryptedData.slice(offset);
+  
+  // 使用 IBE 解密对称密钥
+  const symmetricKey = await decryptWithIBE(encryptedKey, vetKey);
+  
+  // 使用对称密钥解密数据
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    symmetricKey,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['decrypt']
+  );
+  
   const decryptedData = await crypto.subtle.decrypt(
-    {
-      name: 'AES-GCM',
-      iv: iv
-    },
-    aesKey,
+    { name: 'AES-GCM', iv },
+    cryptoKey,
     ciphertext
   );
+  
+  // 安全清除对称密钥
+  crypto.getRandomValues(symmetricKey);
   
   return new Uint8Array(decryptedData);
 }
 
-// 验证数据完整性
-export async function verifyDataIntegrity(data, vetKey) {
-  try {
-    // 尝试使用 vetKey 解密数据
-    await decryptDataSecure(data, vetKey);
-    return true;
-  } catch (error) {
-    console.error('数据完整性验证失败:', error);
-    return false;
-  }
-} 
+/**
+ * 验证数据完整性
+ * IBE 自动提供认证加密，这里提供额外的验证
+ */
+export async function verifyDataIntegrity(encryptedData, expectedHash) {
+  const actualHash = await crypto.subtle.digest('SHA-256', encryptedData);
+  const actualHashHex = Array.from(new Uint8Array(actualHash))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+  
+  return actualHashHex === expectedHash;
+}
+
+/**
+ * 生成数据哈希（用于完整性验证）
+ */
+export async function generateDataHash(data) {
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hash))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+ 

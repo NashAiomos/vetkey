@@ -42,96 +42,178 @@ h3 {
   margin: 1rem 0 0.5rem;
 }
 
+.subtitle {
+  text-align: center;
+  color: #666;
+  font-size: 1.1rem;
+  margin-bottom: 2rem;
+}
+
 .section {
   background: white;
   border-radius: 8px;
   padding: 2rem;
-  margin: 2rem 0;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  
+  h2 {
+    color: #333;
+    margin-bottom: 1.5rem;
+    font-size: 1.4rem;
+  }
 }
 
 .form-group {
-  margin: 1rem 0;
-  text-align: left;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-  color: #555;
-}
-
-input[type="text"] {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 1rem;
-  box-sizing: border-box;
-}
-
-input[type="file"] {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background: white;
-  cursor: pointer;
-  box-sizing: border-box;
+  margin-bottom: 1.5rem;
+  
+  label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: #555;
+  }
+  
+  input[type="text"] {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+    transition: border-color 0.3s;
+    
+    &:focus {
+      outline: none;
+      border-color: #4a90e2;
+    }
+  }
+  
+  input[type="file"] {
+    margin-bottom: 0.25rem;
+  }
+  
+  small {
+    display: block;
+    color: #999;
+    font-size: 0.9rem;
+    margin-top: 0.25rem;
+  }
 }
 
 button {
-  background-color: #EC5A1F;
-  border: none;
+  background-color: #4a90e2;
   color: white;
+  border: none;
   padding: 0.75rem 1.5rem;
   font-size: 1rem;
-  font-weight: 500;
   border-radius: 4px;
   cursor: pointer;
-  margin: 0.5rem;
-  transition: background-color 0.3s;
+  transition: all 0.3s;
+  margin-right: 1rem;
+  
+  &:hover:not(:disabled) {
+    background-color: #357abd;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(74, 144, 226, 0.3);
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+  
+  &:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+  
+  &.download-btn {
+    background-color: #27ae60;
+    
+    &:hover {
+      background-color: #219a52;
+    }
+  }
+
+  &.cleanup-btn {
+    background-color: #e74c3c;
+    margin-right: 0;
+
+    &:hover {
+      background-color: #c0392b;
+    }
+  }
 }
 
-button:hover {
-  background-color: #d44a10;
-}
-
-button:active {
-  transform: scale(0.98);
-}
-
-.status {
-  background: #f0f0f0;
+.status-section {
+  background: #f8f9fa;
   border-radius: 8px;
   padding: 1.5rem;
-  margin: 2rem 0;
-  text-align: left;
+  margin-bottom: 2rem;
+  
+  h3 {
+    color: #333;
+    margin-bottom: 0.75rem;
+    font-size: 1.2rem;
+  }
+  
+  .status-text {
+    margin: 0;
+    font-size: 1rem;
+    white-space: pre-line;
+    line-height: 1.6;
+    color: #555;
+    background: none;
+    border: none;
+    font-family: inherit;
+  }
 }
 
-.status p {
-  margin: 0;
-  color: #666;
+.cleanup-section {
+  background: #fff5f5;
+  border: 1px solid #fcc;
+
+  .cleanup-btn {
+    margin-bottom: 1rem;
+  }
+
+  .cleanup-info {
+    font-size: 0.9rem;
+    color: #555;
+    margin: 0;
+    line-height: 1.5;
+  }
 }
 
-.decrypted-content {
-  background: #f8f8f8;
-  border-radius: 8px;
-  padding: 1.5rem;
-  margin: 2rem 0;
-  text-align: left;
+// 响应式设计
+@media (max-width: 768px) {
+  main {
+    padding: 1rem;
+    
+    .section {
+      padding: 1.5rem;
+    }
+    
+    button {
+      width: 100%;
+      margin-bottom: 1rem;
+      margin-right: 0;
+    }
+  }
 }
 
-.decrypted-content pre {
-  background: white;
-  padding: 1rem;
-  border-radius: 4px;
-  overflow-x: auto;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  margin: 0.5rem 0 0;
-  font-family: "Courier New", Courier, monospace;
-  font-size: 0.9rem;
-  line-height: 1.5;
+// 加载动画
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.loading {
+  animation: pulse 1.5s ease-in-out infinite;
 }
