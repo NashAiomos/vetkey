@@ -131,6 +131,10 @@ async fn get_vetkd_public_key() -> Vec<u8> {
 /// 这个函数使用 vetKD 系统为指定的用户 ID 派生一个唯一的私钥。
 /// 派生的私钥使用传输公钥加密，只有持有对应传输私钥的用户才能解密使用。
 /// 
+/// # 安全机制
+/// - 只有调用者自己的 Principal ID 对应的 userId 才能获取 VetKey
+/// - 防止用户冒充他人获取私钥
+/// 
 /// # 参数
 /// - `user_id`: 用户的唯一标识符，用作密钥派生的输入
 /// - `transport_public_key`: 用于加密返回私钥的传输公钥
@@ -145,8 +149,21 @@ async fn get_vetkd_public_key() -> Vec<u8> {
 /// - 相同的 user_id 总是会派生出相同的私钥
 /// - 不同的用户 ID 会派生出完全不同的私钥
 /// - 派生过程是确定性的但不可逆的
+/// - 只有调用者自己才能获取自己的 VetKey
 #[update]
 async fn derive_vetkd_key(user_id: String, transport_public_key: Vec<u8>) -> Vec<u8> {
+    // 安全检查：确保调用者只能获取自己的 VetKey
+    let caller = ic_cdk::caller();
+    let expected_user_id = caller.to_text();
+    
+    // 验证请求的 user_id 是否与调用者的 Principal 匹配
+    if user_id != expected_user_id {
+        ic_cdk::trap(&format!(
+            "Access denied: You can only access your own VetKey. Caller: {}, Requested: {}",
+            expected_user_id, user_id
+        ));
+    }
+    
     // 用户ID作为派生输入，保持与前端解密时的身份一致
     let input = user_id.as_bytes().to_vec();
     

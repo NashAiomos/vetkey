@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { vetkey_backend } from 'declarations/vetkey_backend';
 import { DerivedPublicKey, TransportSecretKey, EncryptedVetKey } from '@dfinity/vetkeys';
+import { AuthClient } from "@dfinity/auth-client";
 import { 
   generateTransportKey, 
   getVetKey,
@@ -18,10 +19,88 @@ function App() {
   const [decryptUserId, setDecryptUserId] = useState('');
   const [encryptedFileToDecrypt, setEncryptedFileToDecrypt] = useState(null);
   const [decryptedFile, setDecryptedFile] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authClient, setAuthClient] = useState(null);
 
   // Refs for file input elements
   const fileInputRef = useRef(null);
   const encryptedFileInputRef = useRef(null);
+
+  // 初始化身份验证
+  useEffect(() => {
+    const initAuth = async () => {
+      const client = await AuthClient.create();
+      setAuthClient(client);
+      
+      // 检查是否已经登录
+      const isAuthenticated = await client.isAuthenticated();
+      if (isAuthenticated) {
+        const identity = client.getIdentity();
+        const principalId = identity.getPrincipal().toString();
+        setCurrentUser(principalId);
+        setStatus(`已登录，用户身份: ${principalId}`);
+      } else {
+        setStatus('请先登录以使用加密功能');
+      }
+    };
+    
+    initAuth();
+  }, []);
+
+  // 登录函数
+  const login = async () => {
+    if (!authClient) return;
+    
+    try {
+      setStatus('正在登录...');
+      await authClient.login({
+        identityProvider: "https://identity.ic0.app",
+        onSuccess: () => {
+          const identity = authClient.getIdentity();
+          const principalId = identity.getPrincipal().toString();
+          setCurrentUser(principalId);
+          setStatus(`登录成功！用户身份: ${principalId}`);
+        },
+        onError: (error) => {
+          console.error('登录失败:', error);
+          setStatus('登录失败，请重试');
+        }
+      });
+    } catch (error) {
+      console.error('登录错误:', error);
+      setStatus('登录过程中出现错误');
+    }
+  };
+
+  // 登出函数
+  const logout = async () => {
+    if (!authClient) return;
+    
+    await authClient.logout();
+    setCurrentUser(null);
+    clearVetKeyCache();
+    setStatus('已登出');
+  };
+
+  // 获取当前用户身份作为加密目标
+  const useCurrentUserAsTarget = () => {
+    if (currentUser) {
+      setUserId(currentUser);
+      setStatus(`已设置加密目标为当前用户: ${currentUser}`);
+    } else {
+      setStatus('请先登录');
+    }
+  };
+
+  // 获取当前用户身份作为解密身份
+  const useCurrentUserForDecrypt = () => {
+    if (currentUser) {
+      setDecryptUserId(currentUser);
+      setStatus(`已设置解密身份为当前用户: ${currentUser}`);
+    } else {
+      setStatus('请先登录');
+    }
+  };
 
   // 处理文件选择
   const handleFileSelect = (event) => {
@@ -45,34 +124,31 @@ function App() {
       return;
     }
 
+    if (!currentUser) {
+      setStatus('请先登录');
+      return;
+    }
+
     try {
       setStatus('正在准备加密...');
 
       // 读取文件内容
       const fileContent = await readFileAsArrayBuffer(file);
       
-      // 获取或创建传输密钥（会自动缓存）
-      const transportSecretKey = generateTransportKey();
+      setStatus('正在从服务器获取公钥...');
       
-      setStatus('正在从服务器获取加密密钥...');
-      
-      // 从后端获取加密的 vetKey
-      const encryptedVetKeyBytes = await vetkey_backend.derive_vetkd_key(
-        userId,
-        Array.from(transportSecretKey.publicKeyBytes())
-      );
-      
-      // 获取公钥用于验证和加密
+      // 获取系统公钥用于 IBE 加密
       const publicKeyBytes = await vetkey_backend.get_vetkd_public_key();
       const publicKey = DerivedPublicKey.deserialize(new Uint8Array(publicKeyBytes));
       
       setStatus('正在加密文件...');
       
-      // 使用 IBE 混合加密方案加密文件
+      // 使用 IBE 直接为目标用户加密文件
+      // 这里不需要获取任何 VetKey，只需要公钥和接收者的用户ID
       const encrypted = await encryptLargeData(
         new Uint8Array(fileContent), 
-        userId, 
-        publicKey
+        userId,  // 接收者的用户ID 
+        publicKey  // 系统公钥
       );
       
       // 生成文件哈希用于完整性验证
@@ -83,10 +159,11 @@ function App() {
         originalName: file.name,
         originalSize: file.size,
         encryptedSize: encrypted.length,
-        userId: userId,
+        userId: userId,  // 接收者ID
+        encryptedBy: currentUser,  // 记录加密者身份
         timestamp: new Date().toISOString(),
         hash: fileHash,
-        encryptionVersion: 'IBE-v1'
+        encryptionVersion: 'IBE-v2'
       };
       
       // 将元数据添加到加密文件
@@ -148,8 +225,13 @@ function App() {
 
   // 解密文件
   const decryptFile = async () => {
-    if (!encryptedFileToDecrypt || !decryptUserId) {
-      setStatus('请输入用户ID并选择加密文件');
+    if (!encryptedFileToDecrypt) {
+      setStatus('请选择加密文件');
+      return;
+    }
+
+    if (!currentUser) {
+      setStatus('请先登录');
       return;
     }
 
@@ -165,9 +247,10 @@ function App() {
       const metadataBytes = encryptedBytes.slice(4, 4 + metadataLength);
       const metadata = JSON.parse(new TextDecoder().decode(metadataBytes));
       
-      // 验证用户ID
-      if (metadata.userId !== decryptUserId) {
-        setStatus(`用户ID不匹配。文件是为用户 "${metadata.userId}" 加密的`);
+      // 安全检查：验证当前用户是否有权限解密此文件
+      // 在新的安全模型中，只有文件的目标用户才能解密
+      if (metadata.userId !== currentUser) {
+        setStatus(`访问被拒绝：此文件是为用户 "${metadata.userId}" 加密的，您无法解密。`);
         return;
       }
       
@@ -186,18 +269,19 @@ function App() {
       // 获取或创建传输密钥
       const transportSecretKey = generateTransportKey();
       
-      // 从后端获取加密的 vetKey
+      // 在 IBE 系统中，只有目标用户可以获取解密所需的私钥（VetKey）
+      // 这就是为什么只能解密发给自己的文件
       const encryptedVetKeyBytes = await vetkey_backend.derive_vetkd_key(
-        decryptUserId,
+        currentUser,  // 当前用户只能获取自己的 VetKey
         Array.from(transportSecretKey.publicKeyBytes())
       );
       
       // 获取公钥用于验证
       const publicKeyBytes = await vetkey_backend.get_vetkd_public_key();
       
-      // 获取 VetKey
+      // 获取当前用户的 VetKey（用于解密发给自己的文件）
       const vetKey = getVetKey(
-        decryptUserId,
+        currentUser,  // 使用当前用户身份
         new Uint8Array(encryptedVetKeyBytes),
         new Uint8Array(publicKeyBytes),
         transportSecretKey
@@ -296,25 +380,61 @@ function App() {
   return (
     <main>
       <h1>VetKey IBE 文件加密系统</h1>
-      <p className="subtitle">使用身份基加密（IBE）保护您的文件</p>
+      <p className="subtitle">使用身份基加密（IBE）保护您的文件 - 安全版本</p>
+      
+      {/* 身份验证区域 */}
+      <div className="section auth-section">
+        <h2>身份验证</h2>
+        {currentUser ? (
+          <div className="user-info">
+            <p>已登录用户: <strong>{currentUser}</strong></p>
+            <button onClick={logout} className="logout-btn">
+              🚪 登出
+            </button>
+          </div>
+        ) : (
+          <div className="login-area">
+            <p>请先登录以使用加密功能</p>
+            <button onClick={login} className="login-btn">
+              🔐 使用 Internet Identity 登录
+            </button>
+          </div>
+        )}
+      </div>
       
       <div className="section">
         <h2>文件加密</h2>
+        <div className="info-box">
+          <p>🔐 <strong>IBE 加密原理</strong>：使用接收者的身份ID进行加密，只有接收者本人可以解密文件。您可以为任何用户加密文件，但只有目标用户才能解密。</p>
+        </div>
         <div className="form-group">
-          <label>用户 ID：</label>
+          <label>加密目标用户 ID：</label>
           <input
             type="text"
             value={userId}
             onChange={(e) => setUserId(e.target.value)}
-            placeholder="输入接收者的用户ID"
+            placeholder="输入接收者的 Principal ID"
+            disabled={!currentUser}
           />
+          <button 
+            onClick={useCurrentUserAsTarget} 
+            disabled={!currentUser}
+            className="helper-btn"
+          >
+            使用当前用户
+          </button>
         </div>
         <div className="form-group">
           <label>选择文件：</label>
-          <input type="file" onChange={handleFileSelect} ref={fileInputRef} />
+          <input 
+            type="file" 
+            onChange={handleFileSelect} 
+            ref={fileInputRef} 
+            disabled={!currentUser}
+          />
           <small>最大文件大小: 100MB</small>
         </div>
-        <button onClick={encryptFile} disabled={!file || !userId}>
+        <button onClick={encryptFile} disabled={!file || !userId || !currentUser}>
           🔒 加密文件
         </button>
         {encryptedFile && (
@@ -326,14 +446,8 @@ function App() {
 
       <div className="section">
         <h2>文件解密</h2>
-        <div className="form-group">
-          <label>用户 ID：</label>
-          <input
-            type="text"
-            value={decryptUserId}
-            onChange={(e) => setDecryptUserId(e.target.value)}
-            placeholder="输入您的用户ID"
-          />
+        <div className="info-box">
+          <p>🔒 安全提示：只有文件的目标用户才能解密文件。系统会自动验证您的身份。</p>
         </div>
         <div className="form-group">
           <label>选择加密文件：</label>
@@ -342,9 +456,10 @@ function App() {
             onChange={handleEncryptedFileSelect}
             accept=".vetkey"
             ref={encryptedFileInputRef}
+            disabled={!currentUser}
           />
         </div>
-        <button onClick={decryptFile} disabled={!encryptedFileToDecrypt || !decryptUserId}>
+        <button onClick={decryptFile} disabled={!encryptedFileToDecrypt || !currentUser}>
           🔓 解密文件
         </button>
         {decryptedFile && (
