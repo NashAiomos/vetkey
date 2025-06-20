@@ -1,3 +1,4 @@
 service : {
-    "greet": (text) -> (text) query;
+    "get_vetkd_public_key": () -> (blob);
+    "derive_vetkd_key": (user_id: text, transport_public_key: blob) -> (blob);
 }

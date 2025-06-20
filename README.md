@@ -1,3 +1,108 @@
+# VetKey 文件加密系统
+
+这是一个基于 Internet Computer 的 vetKey 技术实现的文件加密解密系统。该系统允许用户使用唯一的用户 ID 来加密和解密文件，所有文件处理都在浏览器本地完成。
+
+## 功能特性
+
+- **文件加密**：使用用户 ID 生成唯一的加密密钥
+- **文件解密**：使用相同的用户 ID 解密文件
+- **浏览器本地处理**：文件和密文都在浏览器本地处理，保护隐私
+- **基于 vetKey 技术**：利用 IC 的阈值密钥派生技术
+
+## 技术架构
+
+- **后端**：Rust + IC SDK
+- **前端**：React + Vite
+- **加密技术**：vetKD (Verifiably Encrypted Threshold Key Derivation)
+
+## 快速开始
+
+### 前置要求
+
+- 安装 [DFX](https://internetcomputer.org/docs/current/developer-docs/build/install-upgrade-remove/)
+- 安装 Node.js (版本 16+)
+- 安装 Rust
+
+### 安装和运行
+
+1. 克隆项目并进入项目目录：
+```bash
+cd vetkey
+```
+
+2. 安装依赖：
+```bash
+npm install
+```
+
+3. 启动本地 IC 网络：
+```bash
+dfx start --clean
+```
+
+4. 在新的终端窗口中部署 canister：
+```bash
+dfx deploy
+```
+
+5. 启动前端开发服务器：
+```bash
+npm start
+```
+
+6. 在浏览器中访问 `http://localhost:3000`
+
+## 使用说明
+
+### 文件加密
+
+1. 输入一个唯一的用户 ID（例如：user123）
+2. 选择要加密的文件
+3. 点击"加密文件"按钮
+4. 加密完成后，点击"下载加密文件"保存加密文件
+
+### 文件解密
+
+1. 输入与加密时相同的用户 ID
+2. 选择之前下载的加密文件（.encrypted 文件）
+3. 点击"解密文件"按钮
+4. 解密成功后，原始内容将显示在页面上
+
+## 工作原理
+
+1. **密钥生成**：系统使用用户 ID 作为输入，通过 vetKD 协议派生唯一的加密密钥
+2. **传输安全**：使用传输密钥对确保密钥在传输过程中的安全
+3. **确定性密钥**：相同的用户 ID 总是生成相同的密钥，确保可以解密
+4. **本地处理**：所有加密和解密操作都在浏览器中完成
+
+## 注意事项
+
+- 本示例使用简单的 XOR 加密算法进行演示，生产环境应使用更安全的加密算法（如 AES）
+- 请妥善保管用户 ID，丢失 ID 将无法解密文件
+- 本地开发环境使用 `dfx_test_key`，部署到主网时需要修改为 `test_key_1` 或 `key_1`
+
+## 项目结构
+
+```
+vetkey/
+├── src/
+│   ├── vetkey_backend/      # Rust 后端代码
+│   │   ├── src/
+│   │   │   └── lib.rs      # vetKD API 实现
+│   │   └── Cargo.toml
+│   └── vetkey_frontend/     # React 前端代码
+│       ├── src/
+│       │   ├── App.jsx     # 主应用组件
+│       │   └── index.scss  # 样式文件
+│       └── package.json
+├── dfx.json                 # DFX 配置
+└── package.json
+```
+
+## 许可证
+
+本项目仅供学习和演示目的使用。
+
 # `vetkey`
 
 Welcome to your new `vetkey` project and to the Internet Computer development community. By default, creating a new project adds this README and some template files to your project directory. You can edit these template files to customize your project and to include your own code to speed up the development cycle.
