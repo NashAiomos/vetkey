@@ -163,7 +163,6 @@ function App() {
 
   return (
     <main>
-      <img src="/logo2.svg" alt="DFINITY logo" />
       <h1>VetKey 文件加密系统</h1>
       
       <div className="section">
