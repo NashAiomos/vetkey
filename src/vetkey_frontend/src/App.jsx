@@ -144,7 +144,7 @@ function App() {
       setStatus('正在加密文件...');
       
       // 使用 IBE 直接为目标用户加密文件
-      // 这里不需要获取任何 VetKey，只需要公钥和接收者的用户ID
+      // 只需要公钥和接收者的用户ID
       const encrypted = await encryptLargeData(
         new Uint8Array(fileContent), 
         userId,  // 接收者的用户ID 
@@ -269,8 +269,7 @@ function App() {
       // 获取或创建传输密钥
       const transportSecretKey = generateTransportKey();
       
-      // 在 IBE 系统中，只有目标用户可以获取解密所需的私钥（VetKey）
-      // 这就是为什么只能解密发给自己的文件
+      // 在 IBE 系统中，只有目标用户可以获取解密所需的私钥
       const encryptedVetKeyBytes = await vetkey_backend.derive_vetkd_key(
         currentUser,  // 当前用户只能获取自己的 VetKey
         Array.from(transportSecretKey.publicKeyBytes())
