@@ -253,19 +253,6 @@ export async function decryptLargeData(encryptedData, vetKey) {
 }
 
 /**
- * 验证数据完整性
- * IBE 自动提供认证加密，这里提供额外的验证
- */
-export async function verifyDataIntegrity(encryptedData, expectedHash) {
-  const actualHash = await crypto.subtle.digest('SHA-256', encryptedData);
-  const actualHashHex = Array.from(new Uint8Array(actualHash))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
-  
-  return actualHashHex === expectedHash;
-}
-
-/**
  * 生成数据哈希（用于完整性验证）
  */
 export async function generateDataHash(data) {
