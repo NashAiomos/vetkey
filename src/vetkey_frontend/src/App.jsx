@@ -10,7 +10,7 @@ function App() {
   const [status, setStatus] = useState('');
   const [decryptUserId, setDecryptUserId] = useState('');
   const [encryptedFileToDecrypt, setEncryptedFileToDecrypt] = useState(null);
-  const [decryptedContent, setDecryptedContent] = useState('');
+  const [decryptedFile, setDecryptedFile] = useState(null);
 
   // 处理文件选择
   const handleFileSelect = (event) => {
@@ -139,16 +139,42 @@ function App() {
       // 使用 vetKey 解密文件内容（使用安全的 AES-GCM 解密）
       const decrypted = await decryptDataSecure(new Uint8Array(encryptedContent), vetKey);
       
-      // 尝试将解密内容转换为文本
-      const decoder = new TextDecoder();
-      const text = decoder.decode(decrypted);
-      setDecryptedContent(text);
+      // 获取原始文件名
+      let originalFileName = encryptedFileToDecrypt.name;
+      if (originalFileName.endsWith('.encrypted')) {
+        originalFileName = originalFileName.slice(0, -10); // 去掉 '.encrypted'
+      }
+      
+      // 创建解密文件对象
+      const decryptedBlob = new Blob([decrypted], { type: 'application/octet-stream' });
+      setDecryptedFile({
+        blob: decryptedBlob,
+        name: originalFileName
+      });
 
-      setStatus('文件解密成功！');
+      setStatus('文件解密成功！可以下载原文件了。');
     } catch (error) {
       console.error('解密错误:', error);
       setStatus(`解密失败: ${error.message}`);
     }
+  };
+
+  // 下载解密文件
+  const downloadDecryptedFile = () => {
+    if (!decryptedFile) {
+      setStatus('没有可下载的解密文件');
+      return;
+    }
+
+    const url = URL.createObjectURL(decryptedFile.blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = decryptedFile.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setStatus('原文件已下载');
   };
 
   // 辅助函数：读取文件为 ArrayBuffer
@@ -202,19 +228,15 @@ function App() {
           <input type="file" onChange={handleEncryptedFileSelect} accept=".encrypted" />
         </div>
         <button onClick={decryptFile}>解密文件</button>
+        {decryptedFile && (
+          <button onClick={downloadDecryptedFile}>下载原文件</button>
+        )}
       </div>
 
       <div className="status">
         <h3>状态：</h3>
         <p>{status}</p>
       </div>
-
-      {decryptedContent && (
-        <div className="decrypted-content">
-          <h3>解密内容：</h3>
-          <pre>{decryptedContent}</pre>
-        </div>
-      )}
     </main>
   );
 }

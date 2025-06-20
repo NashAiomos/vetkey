@@ -1,6 +1,6 @@
 # VetKey 文件加密系统
 
-这是一个基于 Internet Computer 的 vetKey 技术实现的文件加密解密系统。该系统允许用户使用唯一的用户 ID 来加密和解密文件，所有文件处理都在浏览器本地完成。
+一个基于 Internet Computer 的 vetKey 实现的文件加密解密系统。用户可以使用唯一的用户 ID 来加密和解密文件，所有文件处理都在浏览器本地完成。
 
 ## 功能特性
 
@@ -22,6 +22,12 @@
 - 安装 [DFX](https://internetcomputer.org/docs/current/developer-docs/build/install-upgrade-remove/)
 - 安装 Node.js (版本 16+)
 - 安装 Rust
+- [Quick Start](https://internetcomputer.org/docs/current/developer-docs/setup/deploy-locally)
+- [SDK Developer Tools](https://internetcomputer.org/docs/current/developer-docs/setup/install)
+- [Rust Canister Development Guide](https://internetcomputer.org/docs/current/developer-docs/backend/rust/)
+- [ic-cdk](https://docs.rs/ic-cdk)
+- [ic-cdk-macros](https://docs.rs/ic-cdk-macros)
+- [Candid Introduction](https://internetcomputer.org/docs/current/developer-docs/backend/candid/)
 
 ### 安装和运行
 
@@ -37,7 +43,7 @@ npm install
 
 3. 启动本地 IC 网络：
 ```bash
-dfx start --clean
+dfx start --background --clean
 ```
 
 4. 在新的终端窗口中部署 canister：
@@ -45,12 +51,7 @@ dfx start --clean
 dfx deploy
 ```
 
-5. 启动前端开发服务器：
-```bash
-npm start
-```
-
-6. 在浏览器中访问 `http://localhost:3000`
+5. 在浏览器中访问 `http://localhost:3000`
 
 ## 使用说明
 
@@ -98,63 +99,6 @@ vetkey/
 ├── dfx.json                 # DFX 配置
 └── package.json
 ```
-
-## 许可证
-
-本项目仅供学习和演示目的使用。
-
-# `vetkey`
-
-Welcome to your new `vetkey` project and to the Internet Computer development community. By default, creating a new project adds this README and some template files to your project directory. You can edit these template files to customize your project and to include your own code to speed up the development cycle.
-
-To get started, you might want to explore the project directory structure and the default configuration file. Working with this project in your development environment will not affect any production deployment or identity tokens.
-
-To learn more before you start working with `vetkey`, see the following documentation available online:
-
-- [Quick Start](https://internetcomputer.org/docs/current/developer-docs/setup/deploy-locally)
-- [SDK Developer Tools](https://internetcomputer.org/docs/current/developer-docs/setup/install)
-- [Rust Canister Development Guide](https://internetcomputer.org/docs/current/developer-docs/backend/rust/)
-- [ic-cdk](https://docs.rs/ic-cdk)
-- [ic-cdk-macros](https://docs.rs/ic-cdk-macros)
-- [Candid Introduction](https://internetcomputer.org/docs/current/developer-docs/backend/candid/)
-
-If you want to start working on your project right away, you might want to try the following commands:
-
-```bash
-cd vetkey/
-dfx help
-dfx canister --help
-```
-
-## Running the project locally
-
-If you want to test your project locally, you can use the following commands:
-
-```bash
-# Starts the replica, running in the background
-dfx start --background
-
-# Deploys your canisters to the replica and generates your candid interface
-dfx deploy
-```
-
-Once the job completes, your application will be available at `http://localhost:4943?canisterId={asset_canister_id}`.
-
-If you have made changes to your backend canister, you can generate a new candid interface with
-
-```bash
-npm run generate
-```
-
-at any time. This is recommended before starting the frontend development server, and will be run automatically any time you run `dfx deploy`.
-
-If you are making frontend changes, you can start a development server with
-
-```bash
-npm start
-```
-
-Which will start a server at `http://localhost:8080`, proxying API requests to the replica at port 4943.
 
 ### Note on frontend environment variables
 

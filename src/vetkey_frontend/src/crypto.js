@@ -2,7 +2,7 @@
 
 // 从 vetKey 派生 AES 密钥
 export async function deriveAESKey(vetKey) {
-  const keyBytes = vetKey.secretKeyBytes();
+  const keyBytes = vetKey.signatureBytes();
   
   // 使用前 32 字节作为 AES-256 密钥材料
   const keyMaterial = keyBytes.slice(0, 32);
@@ -67,20 +67,14 @@ export async function decryptDataSecure(encryptedData, vetKey) {
   return new Uint8Array(decryptedData);
 }
 
-// 简单的 XOR 加密（仅用于演示，不安全）
-export function encryptDataSimple(data, vetKey) {
-  const keyBytes = vetKey.secretKeyBytes();
-  const encrypted = new Uint8Array(data.length);
-  
-  for (let i = 0; i < data.length; i++) {
-    encrypted[i] = data[i] ^ keyBytes[i % keyBytes.length];
+// 验证数据完整性
+export async function verifyDataIntegrity(data, vetKey) {
+  try {
+    // 尝试使用 vetKey 解密数据
+    await decryptDataSecure(data, vetKey);
+    return true;
+  } catch (error) {
+    console.error('数据完整性验证失败:', error);
+    return false;
   }
-  
-  return encrypted;
-}
-
-// 简单的 XOR 解密（仅用于演示，不安全）
-export function decryptDataSimple(data, vetKey) {
-  // XOR 是对称的，加密和解密相同
-  return encryptDataSimple(data, vetKey);
 } 
