@@ -9,7 +9,17 @@
     "prebuild": "npm run prebuild --workspaces --if-present",
     "pretest": "npm run prebuild --workspaces --if-present",
     "start": "npm start --workspaces --if-present",
-    "test": "npm test --workspaces --if-present"
+    "test": "npm test --workspaces --if-present",
+    "deploy:local": "dfx deploy",
+    "deploy:ii": "dfx deploy internet_identity",
+    "deploy:backend": "dfx deploy vetkey_backend",
+    "deploy:frontend": "dfx deploy vetkey_frontend",
+    "deploy:all": "npm run deploy:ii && npm run deploy:backend && npm run deploy:frontend",
+    "dev": "npm run deploy:all && npm start",
+    "deploy:ic": "dfx deploy --network ic",
+    "deploy:ic:backend": "dfx deploy --network ic vetkey_backend",
+    "deploy:ic:frontend": "dfx deploy --network ic vetkey_frontend",
+    "deploy:ic:all": "npm run deploy:ic:backend && npm run deploy:ic:frontend"
   },
   "type": "module",
   "workspaces": [

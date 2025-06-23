@@ -14,6 +14,27 @@
       ],
       "type": "assets",
       "workspace": "vetkey_frontend"
+    },
+    "internet_identity": {
+      "type": "custom",
+      "candid": "src/ii/internet_identity.did",
+      "wasm": "src/ii/internet_identity_dev.wasm.gz",
+      "remote": {
+        "id": {
+          "ic": "rdmx6-jaaaa-aaaaa-aaadq-cai"
+        }
+      },
+      "frontend": {}
+    }
+  },
+  "networks": {
+    "local": {
+      "bind": "127.0.0.1:4943",
+      "type": "ephemeral"
+    },
+    "ic": {
+      "providers": ["https://ic0.app"],
+      "type": "persistent"
     }
   },
   "defaults": {

@@ -4,7 +4,6 @@
 //! 密钥派生服务。主要功能包括：
 //! - 获取 vetKD 公钥
 //! - 为特定用户派生加密密钥
-//! - 支持 zCloak KYC 应用的身份验证
 
 use ic_cdk::api::call::{call, call_with_payment128};
 use ic_cdk::update;
@@ -12,8 +11,10 @@ use candid::{CandidType, Deserialize, Principal};
 
 /// 域分隔符，用于特定应用上下文
 /// 
-/// 这个常量定义了应用的唯一标识符，用于确保密钥派生的上下文隔离
+/// 定义了应用的唯一标识符，用于确保密钥派生的上下文隔离
 /// 不同的应用应该使用不同的域分隔符以避免密钥冲突
+/// 如果没有域分离，存在跨上下文攻击风险
+/// 在 IBE 身份中使用域分离器，防止密钥在不同上下文中被误用
 const DOMAIN_SEPARATOR: &[u8] = b"zCloak-KYC-vetkey-app-zzx777593gcaatys7824k77g9ryxv78td5g6sh";
 
 // ==================== vetKD 系统相关类型定义 ====================

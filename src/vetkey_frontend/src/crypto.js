@@ -160,99 +160,6 @@ export async function decryptWithIBE(encryptedData, vetKey) {
 }
 
 /**
- * 为大文件提供混合加密方案
- * 使用 IBE 加密对称密钥，然后用对称密钥加密实际数据
- */
-export async function encryptLargeData(data, userId, publicKey) {
-  // 生成随机对称密钥
-  const symmetricKey = crypto.getRandomValues(new Uint8Array(32));
-  
-  // 使用 IBE 加密对称密钥
-  const encryptedKey = await encryptWithIBE(symmetricKey, userId, publicKey);
-  
-  // 使用对称密钥加密数据
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw',
-    symmetricKey,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt']
-  );
-  
-  const encryptedData = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
-    cryptoKey,
-    data
-  );
-  
-  // 组合结果：[加密密钥长度(2字节)] + [加密密钥] + [IV] + [加密数据]
-  const keyLengthBytes = new Uint8Array(2);
-  new DataView(keyLengthBytes.buffer).setUint16(0, encryptedKey.length, false);
-  
-  const result = new Uint8Array(
-    2 + encryptedKey.length + iv.length + encryptedData.byteLength
-  );
-  
-  let offset = 0;
-  result.set(keyLengthBytes, offset);
-  offset += 2;
-  result.set(encryptedKey, offset);
-  offset += encryptedKey.length;
-  result.set(iv, offset);
-  offset += iv.length;
-  result.set(new Uint8Array(encryptedData), offset);
-  
-  // 安全清除对称密钥
-  crypto.getRandomValues(symmetricKey);
-  
-  return result;
-}
-
-/**
- * 解密大文件
- */
-export async function decryptLargeData(encryptedData, vetKey) {
-  // 读取加密密钥长度
-  const keyLength = new DataView(encryptedData.buffer, 0, 2).getUint16(0, false);
-  
-  let offset = 2;
-  // 提取加密的对称密钥
-  const encryptedKey = encryptedData.slice(offset, offset + keyLength);
-  offset += keyLength;
-  
-  // 提取 IV
-  const iv = encryptedData.slice(offset, offset + 12);
-  offset += 12;
-  
-  // 提取加密数据
-  const ciphertext = encryptedData.slice(offset);
-  
-  // 使用 IBE 解密对称密钥
-  const symmetricKey = await decryptWithIBE(encryptedKey, vetKey);
-  
-  // 使用对称密钥解密数据
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw',
-    symmetricKey,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['decrypt']
-  );
-  
-  const decryptedData = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv },
-    cryptoKey,
-    ciphertext
-  );
-  
-  // 安全清除对称密钥
-  crypto.getRandomValues(symmetricKey);
-  
-  return new Uint8Array(decryptedData);
-}
-
-/**
  * 生成数据哈希（用于完整性验证）
  */
 export async function generateDataHash(data) {
@@ -262,4 +169,3 @@ export async function generateDataHash(data) {
     .join('');
 }
 
- 
